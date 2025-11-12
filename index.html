@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tabungan Siswa — Starter</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Tabungan Siswa — Demo</h1>
+
+    <section id="auth-section">
+      <div id="user-info" hidden>
+        <span id="user-email"></span> — <button id="btn-logout">Logout</button>
+      </div>
+
+      <div id="auth-forms">
+        <input id="email" placeholder="email" type="email" />
+        <input id="password" placeholder="password" type="password" />
+        <button id="btn-login">Login</button>
+        <button id="btn-register">Register (Siswa)</button>
+      </div>
+    </section>
+
+    <section id="app" hidden>
+      <div class="left">
+        <h2>Dashboard</h2>
+        <div id="balance-card">Saldo: <span id="balance">-</span></div>
+
+        <h3>Form Transaksi</h3>
+        <select id="student-select"></select>
+        <input id="amount" type="number" placeholder="Jumlah (Rp)" />
+        <select id="type">
+          <option value="deposit">Setoran</option>
+          <option value="withdrawal">Penarikan</option>
+        </select>
+        <input id="note" placeholder="Catatan (opsional)" />
+        <button id="btn-submit">Kirim</button>
+
+      </div>
+      <div class="right">
+        <h3>Riwayat Transaksi</h3>
+        <ul id="tx-list"></ul>
+
+        <h3>Transaksi Pending (untuk admin)</h3>
+        <ul id="pending-list"></ul>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module">
+    // Ganti konfigurasi ini dengan config Firebase projectmu
+    const firebaseConfig = {
+      apiKey: "REPLACE_API_KEY",
+      authDomain: "REPLACE_PROJECT.firebaseapp.com",
+      projectId: "REPLACE_PROJECT",
+      storageBucket: "REPLACE_PROJECT.appspot.com",
+      messagingSenderId: "REPLACE_SENDER_ID",
+      appId: "REPLACE_APP_ID"
+    };
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+    import { getFirestore, collection, addDoc, doc, getDoc, onSnapshot, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Expose firebase objects for app.js
+    window.__FIREBASE = { auth, db };
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
