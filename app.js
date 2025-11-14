@@ -191,3 +191,14 @@ async function approveTx(txId, data) {
     alert('Gagal approve: ' + e.message);
   }
 }
+Catatan teknis: di file ini aku gunakan convenience window.__FIREBASE.db.collection() style untuk kompatibilitas cepat tanpa bundler. Untuk produksi, ubah ke modular imports (getDocs, collection, doc, setDoc, runTransaction).
+________________________________________
+styles.css
+body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;padding:20px;background:#f7f7fb}
+.container{max-width:1000px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+h1{margin-top:0}
+.left{float:left;width:48%}
+.right{float:right;width:48%}
+input,select,button{display:block;margin:8px 0;padding:8px}
+#tx-list li,#pending-list li{margin:6px 0;padding:6px;border-bottom:1px solid #eee}
+#balance-card{font-size:1.2rem;font-weight:700;margin-bottom:12px}
