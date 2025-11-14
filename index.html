@@ -51,27 +51,38 @@
   </main>
 
   <script type="module">
-    // Ganti konfigurasi ini dengan config Firebase projectmu
+    // Import SDKs (modular) -------------------------------------------------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+    import {
+      getAuth
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import {
+      getFirestore
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Your web app's Firebase configuration (already provided)
     const firebaseConfig = {
-      apiKey: "REPLACE_API_KEY",
-      authDomain: "REPLACE_PROJECT.firebaseapp.com",
-      projectId: "REPLACE_PROJECT",
-      storageBucket: "REPLACE_PROJECT.appspot.com",
-      messagingSenderId: "REPLACE_SENDER_ID",
-      appId: "REPLACE_APP_ID"
+      apiKey: "AIzaSyD7uAvnj-CtJ8rPmKGMz_3ihAdGM4lbQ6I",
+      authDomain: "tabungansiswa-217ef.firebaseapp.com",
+      projectId: "tabungansiswa-217ef",
+      storageBucket: "tabungansiswa-217ef.firebasestorage.app",
+      messagingSenderId: "47567754884",
+      appId: "1:47567754884:web:448cbc34d090e3528294d1",
+      measurementId: "G-6FHER7KBJ8"
     };
 
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-    import { getFirestore, collection, addDoc, doc, getDoc, onSnapshot, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-
+    // Initialize Firebase ----------------------------------------------------
     const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Expose firebase objects for app.js
-    window.__FIREBASE = { auth, db };
+    // Expose firebase objects to app.js via window
+    window.__FIREBASE = { app, auth, db };
   </script>
+
+  <!-- Main application logic (separate file) -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
