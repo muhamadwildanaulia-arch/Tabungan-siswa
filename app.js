@@ -1,9 +1,34 @@
-import { auth, db } from './__firebase_shim__.js'; // shim replaced at runtime
-// Because index.html already attached firebase to window.__FIREBASE, we'll reference that
-const { auth: _auth, db: _db } = window.__FIREBASE;
+// app.js (modular, paste seluruh file ini)
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  orderBy,
+  runTransaction,
+  onSnapshot,
+  serverTimestamp,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+/*
+  Kode mengandalkan window.__FIREBASE yang sudah dibuat di index.html:
+  window.__FIREBASE = { app, auth, db }
+*/
+const auth = window.__FIREBASE.auth;
+const db = window.__FIREBASE.db;
+
+/* ---------- helper DOM ---------- */
 const $ = sel => document.querySelector(sel);
-// Auth elements
 const emailInput = $('#email');
 const passInput = $('#password');
 const btnLogin = $('#btn-login');
@@ -12,7 +37,6 @@ const btnLogout = $('#btn-logout');
 const userInfo = $('#user-info');
 const userEmail = $('#user-email');
 
-// App elements
 const appSection = $('#app');
 const studentSelect = $('#student-select');
 const amountInput = $('#amount');
@@ -23,57 +47,47 @@ const balanceSpan = $('#balance');
 const txList = $('#tx-list');
 const pendingList = $('#pending-list');
 
-// Simple helpers
-function show(el) { el.hidden = false; }
-function hide(el) { el.hidden = true; }
+function show(el){ if(el) el.hidden = false; }
+function hide(el){ if(el) el.hidden = true; }
 
-btnLogin.onclick = async () => {
-  try {
-    await import('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js');
-    await _auth && null;
-    await signIn();
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-btnRegister.onclick = async () => {
-  try {
-    await register();
-  } catch (e) { console.error(e); }
-};
-
-btnLogout.onclick = async () => {
-  await window.__FIREBASE.auth.signOut();
-};
-
-async function signIn() {
-  const email = emailInput.value;
+btnLogin.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
   const password = passInput.value;
+  if (!email || !password) return alert('Masukkan email & password.');
   try {
-    await window.__FIREBASE.auth.signInWithEmailAndPassword(email, password);
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged akan meng-handle sisa
   } catch (e) {
-    alert('Login gagal: ' + e.message);
+    console.error('Login error', e);
+    alert('Login gagal: ' + (e.message || e.code));
   }
-}
+});
 
-async function register() {
-  const email = emailInput.value;
+btnRegister.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
   const password = passInput.value;
+  if (!email || !password) return alert('Masukkan email & password.');
   try {
-    const cred = await window.__FIREBASE.auth.createUserWithEmailAndPassword(email, password);
-    // create user doc with default role 'student'
-    await window.__FIREBASE.db.collection('users').doc(cred.user.uid).set({ email, role: 'student' });
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    // create users doc with role 'student'
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      email: email,
+      role: 'student',
+      createdAt: serverTimestamp()
+    });
     alert('Registrasi berhasil. Silakan login.');
   } catch (e) {
-    alert('Register gagal: ' + e.message);
+    console.error('Register error', e);
+    alert('Register gagal: ' + (e.message || e.code));
   }
-}
+});
 
-// Replace older compat calls with modular equivalents when moving to build tooling.
+btnLogout.addEventListener('click', async () => {
+  await signOut(auth);
+});
 
-// Auth state
-window.__FIREBASE.auth.onAuthStateChanged(async user => {
+/* Auth state listener */
+onAuthStateChanged(auth, async user => {
   if (user) {
     userEmail.textContent = user.email;
     show(userInfo);
@@ -88,117 +102,130 @@ window.__FIREBASE.auth.onAuthStateChanged(async user => {
   }
 });
 
+/* Load students into select */
 async function loadStudents() {
-  // load students collection into select
-  const snap = await window.__FIREBASE.db.collection('students').get();
-  studentSelect.innerHTML = '';
-  snap.forEach(doc => {
-    const d = doc.data();
-    const opt = document.createElement('option');
-    opt.value = doc.id;
-    opt.textContent = d.nis + ' — ' + d.name + (d.class ? ' (' + d.class + ')' : '');
-    studentSelect.appendChild(opt);
-  });
-  updateBalanceForSelected();
+  studentSelect.innerHTML = '<option value="">-- pilih siswa --</option>';
+  try {
+    const q = query(collection(db, 'students'), orderBy('name'));
+    const snap = await getDocs(q);
+    snap.forEach(d => {
+      const data = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${data.nis || '-'} — ${data.name || '(nama)'}${data.class ? ' ('+data.class+')' : ''}`;
+      studentSelect.appendChild(opt);
+    });
+    updateBalanceForSelected();
+  } catch (e) {
+    console.error('Load students error', e);
+    alert('Gagal memuat daftar siswa. Cek console.');
+  }
 }
 
-studentSelect.onchange = updateBalanceForSelected;
+studentSelect.addEventListener('change', updateBalanceForSelected);
 
 async function updateBalanceForSelected() {
   const sid = studentSelect.value;
-  if (!sid) return;
-  const bdoc = await window.__FIREBASE.db.collection('balances').doc(sid).get();
-  if (bdoc.exists) balanceSpan.textContent = formatCurrency(bdoc.data().balance);
-  else balanceSpan.textContent = formatCurrency(0);
+  if (!sid) {
+    balanceSpan.textContent = 'Rp 0';
+    return;
+  }
+  try {
+    const bdoc = await getDoc(doc(db, 'balances', sid));
+    const bal = bdoc.exists() ? (bdoc.data().balance || 0) : 0;
+    balanceSpan.textContent = formatCurrency(bal);
+  } catch (e) {
+    console.error('Update balance error', e);
+    balanceSpan.textContent = 'Rp -';
+  }
 }
 
 function formatCurrency(n) {
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
+  return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
 
-btnSubmit.onclick = async () => {
+/* Submit transaksi (dibuat dengan status pending) */
+btnSubmit.addEventListener('click', async () => {
   const sid = studentSelect.value;
   const amount = Number(amountInput.value);
   const type = typeSelect.value;
   const note = noteInput.value || '';
-  if (!sid || !amount || amount <= 0) return alert('Pilih siswa & masukkan jumlah yang valid.');
-
-  // create pending transaction
+  if (!sid || !amount || amount <= 0) return alert('Pilih siswa & masukkan jumlah valid.');
   try {
-    await window.__FIREBASE.db.collection('transactions').add({
+    await addDoc(collection(db, 'transactions'), {
       studentId: sid,
       amount: amount,
       type: type,
       note: note,
       status: 'pending',
-      createdAt: new Date(),
-      createdBy: window.__FIREBASE.auth.currentUser.uid
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid || null
     });
     alert('Transaksi dikirim untuk verifikasi.');
+    amountInput.value = '';
+    noteInput.value = '';
   } catch (e) {
-    console.error(e);
+    console.error('Create tx error', e);
     alert('Gagal membuat transaksi.');
   }
-}
+});
 
+/* Subscribe realtime transactions (recent) */
 function subscribeTransactions() {
-  // realtime list of transactions for current user
-  window.__FIREBASE.db.collection('transactions').orderBy('createdAt', 'desc').limit(50).onSnapshot(snap => {
-    txList.innerHTML = '';
-    pendingList.innerHTML = '';
-    snap.forEach(doc => {
-      const d = doc.data();
-      const li = document.createElement('li');
-      li.textContent = `${d.type} ${formatCurrency(d.amount)} — ${d.note || '-'} [${d.status}]`;
-      txList.appendChild(li);
-      if (d.status === 'pending') {
-        const pli = document.createElement('li');
-        pli.textContent = `${d.studentId}: ${d.type} ${formatCurrency(d.amount)}`;
-        // approve button (only shown if user is admin) - naive check: read users collection
-        const btnApprove = document.createElement('button');
-        btnApprove.textContent = 'Approve';
-        btnApprove.onclick = async () => await approveTx(doc.id, d);
-        pli.appendChild(btnApprove);
-        pendingList.appendChild(pli);
-      }
-    });
-  });
-}
-
-async function approveTx(txId, data) {
-  // naive admin check
-  const uid = window.__FIREBASE.auth.currentUser.uid;
-  const userDoc = await window.__FIREBASE.db.collection('users').doc(uid).get();
-  if (!userDoc.exists || userDoc.data().role !== 'admin') return alert('Hanya admin yang bisa approve.');
-
-  // transaction - update transaction status and update balance in a simple way
-  const txRef = window.__FIREBASE.db.collection('transactions').doc(txId);
-  const balRef = window.__FIREBASE.db.collection('balances').doc(data.studentId);
-
   try {
-    await window.__FIREBASE.db.runTransaction(async t => {
-      const balDoc = await t.get(balRef);
-      let bal = 0;
-      if (balDoc.exists) bal = balDoc.data().balance;
-      const delta = data.type === 'deposit' ? data.amount : -data.amount;
-      const newBal = bal + delta;
-      t.update(txRef, { status: 'approved', approvedBy: uid, approvedAt: new Date() });
-      t.set(balRef, { balance: newBal, updatedAt: new Date() });
+    const q = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
+    onSnapshot(q, snap => {
+      txList.innerHTML = '';
+      pendingList.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const li = document.createElement('li');
+        li.textContent = `${d.type} ${formatCurrency(d.amount)} — ${d.note || '-'} [${d.status || ''}]`;
+        txList.appendChild(li);
+
+        if (d.status === 'pending') {
+          const pli = document.createElement('li');
+          pli.textContent = `${d.studentId}: ${d.type} ${formatCurrency(d.amount)}`;
+          // approve button (only shows if current user is admin)
+          const btnApprove = document.createElement('button');
+          btnApprove.textContent = 'Approve';
+          btnApprove.style.marginLeft = '8px';
+          btnApprove.onclick = async () => await approveTx(docSnap.id, d);
+          pli.appendChild(btnApprove);
+          pendingList.appendChild(pli);
+        }
+      });
     });
-    alert('Transaksi approved.');
   } catch (e) {
-    console.error(e);
-    alert('Gagal approve: ' + e.message);
+    console.error('Subscribe tx error', e);
   }
 }
-Catatan teknis: di file ini aku gunakan convenience window.__FIREBASE.db.collection() style untuk kompatibilitas cepat tanpa bundler. Untuk produksi, ubah ke modular imports (getDocs, collection, doc, setDoc, runTransaction).
-________________________________________
-styles.css
-body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;padding:20px;background:#f7f7fb}
-.container{max-width:1000px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
-h1{margin-top:0}
-.left{float:left;width:48%}
-.right{float:right;width:48%}
-input,select,button{display:block;margin:8px 0;padding:8px}
-#tx-list li,#pending-list li{margin:6px 0;padding:6px;border-bottom:1px solid #eee}
-#balance-card{font-size:1.2rem;font-weight:700;margin-bottom:12px}
+
+/* Approve tx - this client-side approve is only for demo; in production use Cloud Function */
+async function approveTx(txId, data) {
+  try {
+    // check role
+    const uid = auth.currentUser.uid;
+    const udoc = await getDoc(doc(db, 'users', uid));
+    if (!udoc.exists() || udoc.data().role !== 'admin') return alert('Hanya admin yang dapat approve.');
+
+    // perform transaction: update tx doc + balances in transaction
+    const txRef = doc(db, 'transactions', txId);
+    const balRef = doc(db, 'balances', data.studentId);
+
+    await runTransaction(db, async t => {
+      const balDoc = await t.get(balRef);
+      let bal = 0;
+      if (balDoc.exists()) bal = balDoc.data().balance || 0;
+      const delta = data.type === 'deposit' ? data.amount : -data.amount;
+      const newBal = bal + delta;
+      t.update(txRef, { status: 'approved', approvedBy: uid, approvedAt: serverTimestamp() });
+      t.set(balRef, { balance: newBal, updatedAt: serverTimestamp() }, { merge: true });
+    });
+
+    alert('Transaksi approved.');
+  } catch (e) {
+    console.error('Approve error', e);
+    alert('Gagal approve transaksi: ' + (e.message || e.code));
+  }
+}
