@@ -1,4 +1,4 @@
-// app.js (modular, paste seluruh file ini)
+// app.js (modular)
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -20,10 +20,7 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-/*
-  Kode mengandalkan window.__FIREBASE yang sudah dibuat di index.html:
-  window.__FIREBASE = { app, auth, db }
-*/
+/* Menggunakan window.__FIREBASE yang dibuat di index.html */
 const auth = window.__FIREBASE.auth;
 const db = window.__FIREBASE.db;
 
@@ -56,7 +53,6 @@ btnLogin.addEventListener('click', async () => {
   if (!email || !password) return alert('Masukkan email & password.');
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged akan meng-handle sisa
   } catch (e) {
     console.error('Login error', e);
     alert('Login gagal: ' + (e.message || e.code));
@@ -69,7 +65,6 @@ btnRegister.addEventListener('click', async () => {
   if (!email || !password) return alert('Masukkan email & password.');
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    // create users doc with role 'student'
     await setDoc(doc(db, 'users', cred.user.uid), {
       email: email,
       role: 'student',
@@ -102,7 +97,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-/* Load students into select */
+/* Load students */
 async function loadStudents() {
   studentSelect.innerHTML = '<option value="">-- pilih siswa --</option>';
   try {
@@ -144,7 +139,7 @@ function formatCurrency(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
 
-/* Submit transaksi (dibuat dengan status pending) */
+/* Submit transaksi (status pending) */
 btnSubmit.addEventListener('click', async () => {
   const sid = studentSelect.value;
   const amount = Number(amountInput.value);
@@ -170,7 +165,7 @@ btnSubmit.addEventListener('click', async () => {
   }
 });
 
-/* Subscribe realtime transactions (recent) */
+/* Subscribe realtime transactions */
 function subscribeTransactions() {
   try {
     const q = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
@@ -186,7 +181,6 @@ function subscribeTransactions() {
         if (d.status === 'pending') {
           const pli = document.createElement('li');
           pli.textContent = `${d.studentId}: ${d.type} ${formatCurrency(d.amount)}`;
-          // approve button (only shows if current user is admin)
           const btnApprove = document.createElement('button');
           btnApprove.textContent = 'Approve';
           btnApprove.style.marginLeft = '8px';
@@ -201,15 +195,13 @@ function subscribeTransactions() {
   }
 }
 
-/* Approve tx - this client-side approve is only for demo; in production use Cloud Function */
+/* Approve tx (demo client-side) */
 async function approveTx(txId, data) {
   try {
-    // check role
     const uid = auth.currentUser.uid;
     const udoc = await getDoc(doc(db, 'users', uid));
     if (!udoc.exists() || udoc.data().role !== 'admin') return alert('Hanya admin yang dapat approve.');
 
-    // perform transaction: update tx doc + balances in transaction
     const txRef = doc(db, 'transactions', txId);
     const balRef = doc(db, 'balances', data.studentId);
 
